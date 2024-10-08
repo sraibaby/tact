@@ -108,7 +108,11 @@ type EvalResult =
     | { kind: "ok"; value: Value }
     | { kind: "error"; message: string };
 
-export function ensureInt(val: Value, source: SrcInfo, boundCheck: boolean): bigint {
+export function ensureInt(
+    val: Value,
+    source: SrcInfo,
+    boundCheck: boolean,
+): bigint {
     if (typeof val !== "bigint") {
         throwErrorConstEval(
             `integer expected, but got '${showValue(val)}'`,
@@ -129,7 +133,11 @@ export function ensureInt(val: Value, source: SrcInfo, boundCheck: boolean): big
     }
 }
 
-function ensureRepeatInt(val: Value, source: SrcInfo, boundCheck: boolean): bigint {
+function ensureRepeatInt(
+    val: Value,
+    source: SrcInfo,
+    boundCheck: boolean,
+): bigint {
     if (typeof val !== "bigint") {
         throwErrorConstEval(
             `integer expected, but got '${showValue(val)}'`,
@@ -203,7 +211,11 @@ export function evalUnaryOp(
         case "+":
             return ensureInt(valOperand, operandLoc, boundCheck);
         case "-":
-            return ensureInt(-ensureInt(valOperand, operandLoc, boundCheck), source, boundCheck);
+            return ensureInt(
+                -ensureInt(valOperand, operandLoc, boundCheck),
+                source,
+                boundCheck,
+            );
         case "~":
             return ~ensureInt(valOperand, operandLoc, boundCheck);
         case "!":
@@ -222,7 +234,7 @@ export function evalUnaryOp(
 export function evalBinaryOp(
     op: AstBinaryOperation,
     valLeft: Value,
-    valRight: Value,
+    valRightContinuation: () => Value, // It needs to be a continuation, because some binary operators short-circuit
     boundCheck: boolean,
     locLeft: SrcInfo = dummySrcInfo,
     locRight: SrcInfo = dummySrcInfo,
@@ -231,52 +243,79 @@ export function evalBinaryOp(
     switch (op) {
         case "+":
             return ensureInt(
-                ensureInt(valLeft, locLeft, boundCheck) + ensureInt(valRight, locRight, boundCheck),
-                source, boundCheck
+                ensureInt(valLeft, locLeft, boundCheck) +
+                    ensureInt(valRightContinuation(), locRight, boundCheck),
+                source,
+                boundCheck,
             );
         case "-":
             return ensureInt(
-                ensureInt(valLeft, locLeft, boundCheck) - ensureInt(valRight, locRight, boundCheck),
-                source, boundCheck
+                ensureInt(valLeft, locLeft, boundCheck) -
+                    ensureInt(valRightContinuation(), locRight, boundCheck),
+                source,
+                boundCheck,
             );
         case "*":
             return ensureInt(
-                ensureInt(valLeft, locLeft, boundCheck) * ensureInt(valRight, locRight, boundCheck),
-                source, boundCheck
+                ensureInt(valLeft, locLeft, boundCheck) *
+                    ensureInt(valRightContinuation(), locRight, boundCheck),
+                source,
+                boundCheck,
             );
         case "/": {
             // The semantics of integer division for TVM (and by extension in Tact)
             // is a non-conventional one: by default it rounds towards negative infinity,
             // meaning, for instance, -1 / 5 = -1 and not zero, as in many mainstream languages.
             // Still, the following holds: a / b * b + a % b == a, for all b != 0.
-            const r = ensureInt(valRight, locRight, boundCheck);
+            const r = ensureInt(valRightContinuation(), locRight, boundCheck);
             if (r === 0n)
                 throwErrorConstEval(
                     "divisor expression must be non-zero",
                     locRight,
                 );
-            return ensureInt(divFloor(ensureInt(valLeft, locLeft, boundCheck), r), source, boundCheck);
+            return ensureInt(
+                divFloor(ensureInt(valLeft, locLeft, boundCheck), r),
+                source,
+                boundCheck,
+            );
         }
         case "%": {
             // Same as for division, see the comment above
             // Example: -1 % 5 = 4
-            const r = ensureInt(valRight, locRight, boundCheck);
+            const r = ensureInt(valRightContinuation(), locRight, boundCheck);
             if (r === 0n)
                 throwErrorConstEval(
                     "divisor expression must be non-zero",
                     locRight,
                 );
-            return ensureInt(modFloor(ensureInt(valLeft, locLeft, boundCheck), r), source, boundCheck);
+            return ensureInt(
+                modFloor(ensureInt(valLeft, locLeft, boundCheck), r),
+                source,
+                boundCheck,
+            );
         }
         case "&":
-            return ensureInt(valLeft, locLeft, boundCheck) & ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) &
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case "|":
-            return ensureInt(valLeft, locLeft, boundCheck) | ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) |
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case "^":
-            return ensureInt(valLeft, locLeft, boundCheck) ^ ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) ^
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case "<<": {
             const valNum = ensureInt(valLeft, locLeft, boundCheck);
-            const valBits = ensureInt(valRight, locRight, boundCheck);
+            const valBits = ensureInt(
+                valRightContinuation(),
+                locRight,
+                boundCheck,
+            );
             if (0n > valBits || valBits > 256n) {
                 throwErrorConstEval(
                     `the number of bits shifted ('${valBits}') must be within [0..256] range`,
@@ -297,7 +336,11 @@ export function evalBinaryOp(
         }
         case ">>": {
             const valNum = ensureInt(valLeft, locLeft, boundCheck);
-            const valBits = ensureInt(valRight, locRight, boundCheck);
+            const valBits = ensureInt(
+                valRightContinuation(),
+                locRight,
+                boundCheck,
+            );
             if (0n > valBits || valBits > 256n) {
                 throwErrorConstEval(
                     `the number of bits shifted ('${valBits}') must be within [0..256] range`,
@@ -317,44 +360,60 @@ export function evalBinaryOp(
             }
         }
         case ">":
-            return ensureInt(valLeft, locLeft, boundCheck) > ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) >
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case "<":
-            return ensureInt(valLeft, locLeft, boundCheck) < ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) <
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case ">=":
-            return ensureInt(valLeft, locLeft, boundCheck) >= ensureInt(valRight, locRight, boundCheck);
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) >=
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
         case "<=":
-            return ensureInt(valLeft, locLeft, boundCheck) <= ensureInt(valRight, locRight, boundCheck);
-        case "==":
+            return (
+                ensureInt(valLeft, locLeft, boundCheck) <=
+                ensureInt(valRightContinuation(), locRight, boundCheck)
+            );
+        case "==": {
+            const valR = valRightContinuation();
             // the null comparisons account for optional types, e.g.
             // a const x: Int? = 42 can be compared to null
             if (
-                typeof valLeft !== typeof valRight &&
+                typeof valLeft !== typeof valR &&
                 valLeft !== null &&
-                valRight !== null
+                valR !== null
             ) {
                 throwErrorConstEval(
                     "operands of `==` must have same type",
                     source,
                 );
             }
-            return valLeft === valRight;
-        case "!=":
-            if (typeof valLeft !== typeof valRight) {
+            return valLeft === valR;
+        }
+        case "!=": {
+            const valR = valRightContinuation();
+            if (typeof valLeft !== typeof valR) {
                 throwErrorConstEval(
                     "operands of `!=` must have same type",
                     source,
                 );
             }
-            return valLeft !== valRight;
+            return valLeft !== valR;
+        }
         case "&&":
             return (
                 ensureBoolean(valLeft, locLeft) &&
-                ensureBoolean(valRight, locRight)
+                ensureBoolean(valRightContinuation(), locRight)
             );
         case "||":
             return (
                 ensureBoolean(valLeft, locLeft) ||
-                ensureBoolean(valRight, locRight)
+                ensureBoolean(valRightContinuation(), locRight)
             );
     }
 }
@@ -840,7 +899,11 @@ export class Interpreter {
     }
 
     public interpretNumber(ast: AstNumber): bigint {
-        return ensureInt(ast.value, ast.loc, this.config.checkValueBoundsInExpressions);
+        return ensureInt(
+            ast.value,
+            ast.loc,
+            this.config.checkValueBoundsInExpressions,
+        );
     }
 
     public interpretString(ast: AstString): string {
@@ -857,22 +920,32 @@ export class Interpreter {
 
         if (ast.operand.kind === "number" && ast.op === "-") {
             // emulating negative integer literals
-            return ensureInt(-ast.operand.value, ast.loc, this.config.checkValueBoundsInExpressions);
+            return ensureInt(
+                -ast.operand.value,
+                ast.loc,
+                this.config.checkValueBoundsInExpressions,
+            );
         }
 
         const valOperand = this.interpretExpression(ast.operand);
 
-        return evalUnaryOp(ast.op, valOperand, this.config.checkValueBoundsInExpressions, ast.operand.loc, ast.loc);
+        return evalUnaryOp(
+            ast.op,
+            valOperand,
+            this.config.checkValueBoundsInExpressions,
+            ast.operand.loc,
+            ast.loc,
+        );
     }
 
     public interpretBinaryOp(ast: AstOpBinary): Value {
         const valLeft = this.interpretExpression(ast.left);
-        const valRight = this.interpretExpression(ast.right);
+        const valRightContinuation = () => this.interpretExpression(ast.right);
 
         return evalBinaryOp(
             ast.op,
             valLeft,
-            valRight,
+            valRightContinuation,
             this.config.checkValueBoundsInExpressions,
             ast.left.loc,
             ast.right.loc,
@@ -993,7 +1066,7 @@ export class Interpreter {
                     return ensureInt(
                         BigInt(toNano(tons).toString(10)),
                         ast.loc,
-                        this.config.checkValueBoundsInExpressions
+                        this.config.checkValueBoundsInExpressions,
                     );
                 } catch (e) {
                     if (e instanceof Error && e.message === "Invalid number") {
@@ -1010,12 +1083,12 @@ export class Interpreter {
                 const valBase = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
-                    this.config.checkValueBoundsInExpressions
+                    this.config.checkValueBoundsInExpressions,
                 );
                 const valExp = ensureInt(
                     this.interpretExpression(ast.args[1]!),
                     ast.args[1]!.loc,
-                    this.config.checkValueBoundsInExpressions
+                    this.config.checkValueBoundsInExpressions,
                 );
                 if (valExp < 0n) {
                     throwErrorConstEval(
@@ -1024,7 +1097,11 @@ export class Interpreter {
                     );
                 }
                 try {
-                    return ensureInt(valBase ** valExp, ast.loc, this.config.checkValueBoundsInExpressions);
+                    return ensureInt(
+                        valBase ** valExp,
+                        ast.loc,
+                        this.config.checkValueBoundsInExpressions,
+                    );
                 } catch (e) {
                     if (e instanceof RangeError) {
                         // even TS bigint type cannot hold it
@@ -1041,7 +1118,7 @@ export class Interpreter {
                 const valExponent = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
-                    this.config.checkValueBoundsInExpressions
+                    this.config.checkValueBoundsInExpressions,
                 );
                 if (valExponent < 0n) {
                     throwErrorConstEval(
@@ -1050,7 +1127,11 @@ export class Interpreter {
                     );
                 }
                 try {
-                    return ensureInt(2n ** valExponent, ast.loc, this.config.checkValueBoundsInExpressions);
+                    return ensureInt(
+                        2n ** valExponent,
+                        ast.loc,
+                        this.config.checkValueBoundsInExpressions,
+                    );
                 } catch (e) {
                     if (e instanceof RangeError) {
                         // even TS bigint type cannot hold it
@@ -1244,13 +1325,13 @@ export class Interpreter {
                 const wc = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
-                    this.config.checkValueBoundsInExpressions
+                    this.config.checkValueBoundsInExpressions,
                 );
                 const addr = Buffer.from(
                     ensureInt(
                         this.interpretExpression(ast.args[1]!),
                         ast.args[1]!.loc,
-                        this.config.checkValueBoundsInExpressions
+                        this.config.checkValueBoundsInExpressions,
                     )
                         .toString(16)
                         .padStart(64, "0"),
@@ -1451,7 +1532,7 @@ export class Interpreter {
 
     public interpretAugmentedAssignStatement(ast: AstStatementAugmentedAssign) {
         if (ast.path.kind === "id") {
-            const updateVal = this.interpretExpression(ast.expression);
+            const updateVal = () => this.interpretExpression(ast.expression);
             const currentPathValue = this.envStack.getBinding(idText(ast.path));
             if (currentPathValue === undefined) {
                 throwNonFatalErrorConstEval(
@@ -1505,7 +1586,7 @@ export class Interpreter {
         const iterations = ensureRepeatInt(
             this.interpretExpression(ast.iterations),
             ast.iterations.loc,
-            this.config.checkValueBoundsInExpressions
+            this.config.checkValueBoundsInExpressions,
         );
         if (iterations > 0) {
             // We can create a single environment for all the iterations in the loop

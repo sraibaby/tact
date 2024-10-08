@@ -28,10 +28,13 @@ type TransformData = {
 
 type Transform = (x1: AstExpression, c1: Value, c2: Value) => TransformData;
 
-// This is a wrapper function that simply passes true to the bound checking option of 
-// evalBinaryOp in the iterpreter module.
-function evalBinaryOp(op: AstBinaryOperation, c1: Value, c2: Value): Value {
-    return interpreterModule.evalBinaryOp(op, c1, c2, true);
+/* A simple wrapper function to transform the right value in a binary operator to a continuation
+   so that we can call the evaluation function in the interpreter module.
+   Additionally, it passes true to the bound checking option of 
+   evalBinaryOp in the interpreter module, to ensure that the rule always checks for bounds.
+*/
+function evalBinaryOp(op: AstBinaryOperation, valL: Value, valR: Value): Value {
+    return interpreterModule.evalBinaryOp(op, valL, () => valR, true);
 }
 
 abstract class AssociativeRewriteRule extends Rule {
