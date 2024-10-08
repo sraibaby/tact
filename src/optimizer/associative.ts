@@ -7,7 +7,7 @@ import {
     AstValue,
     isValue,
 } from "../grammar/ast";
-import { evalBinaryOp } from "../interpreter";
+import * as interpreterModule from "../interpreter";
 import { Value } from "../types/types";
 import { ExpressionTransformer, Rule } from "./types";
 import {
@@ -27,6 +27,12 @@ type TransformData = {
 };
 
 type Transform = (x1: AstExpression, c1: Value, c2: Value) => TransformData;
+
+// This is a wrapper function that simply passes true to the bound checking option of 
+// evalBinaryOp in the iterpreter module.
+function evalBinaryOp(op: AstBinaryOperation, c1: Value, c2: Value): Value {
+    return interpreterModule.evalBinaryOp(op, c1, c2, true);
+}
 
 abstract class AssociativeRewriteRule extends Rule {
     // An entry (op, S) in the map means "operator op associates with all operators in set S",

@@ -377,6 +377,7 @@ function dummyEval(ast: AstExpression): AstExpression {
                     evalUnaryOp(
                         ast.op,
                         extractValue(newNode.operand as AstValue),
+                        true
                     ),
                 );
             }
@@ -391,6 +392,7 @@ function dummyEval(ast: AstExpression): AstExpression {
                         ast.op,
                         extractValue(newNode.left as AstValue),
                         extractValue(newNode.right as AstValue),
+                        true
                     ),
                 );
             }

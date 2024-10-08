@@ -108,37 +108,45 @@ type EvalResult =
     | { kind: "ok"; value: Value }
     | { kind: "error"; message: string };
 
-export function ensureInt(val: Value, source: SrcInfo): bigint {
+export function ensureInt(val: Value, source: SrcInfo, boundCheck: boolean): bigint {
     if (typeof val !== "bigint") {
         throwErrorConstEval(
             `integer expected, but got '${showValue(val)}'`,
             source,
         );
     }
-    if (minTvmInt <= val && val <= maxTvmInt) {
-        return val;
+    if (boundCheck) {
+        if (minTvmInt <= val && val <= maxTvmInt) {
+            return val;
+        } else {
+            throwErrorConstEval(
+                `integer '${showValue(val)}' does not fit into TVM Int type`,
+                source,
+            );
+        }
     } else {
-        throwErrorConstEval(
-            `integer '${showValue(val)}' does not fit into TVM Int type`,
-            source,
-        );
+        return val;
     }
 }
 
-function ensureRepeatInt(val: Value, source: SrcInfo): bigint {
+function ensureRepeatInt(val: Value, source: SrcInfo, boundCheck: boolean): bigint {
     if (typeof val !== "bigint") {
         throwErrorConstEval(
             `integer expected, but got '${showValue(val)}'`,
             source,
         );
     }
-    if (minRepeatStatement <= val && val <= maxRepeatStatement) {
-        return val;
+    if (boundCheck) {
+        if (minRepeatStatement <= val && val <= maxRepeatStatement) {
+            return val;
+        } else {
+            throwErrorConstEval(
+                `repeat argument must be a number between -2^256 (inclusive) and 2^31 - 1 (inclusive)`,
+                source,
+            );
+        }
     } else {
-        throwErrorConstEval(
-            `repeat argument must be a number between -2^256 (inclusive) and 2^31 - 1 (inclusive)`,
-            source,
-        );
+        return val;
     }
 }
 
@@ -187,16 +195,17 @@ function ensureMethodArity(
 export function evalUnaryOp(
     op: AstUnaryOperation,
     valOperand: Value,
+    boundCheck: boolean,
     operandLoc: SrcInfo = dummySrcInfo,
     source: SrcInfo = dummySrcInfo,
 ): Value {
     switch (op) {
         case "+":
-            return ensureInt(valOperand, operandLoc);
+            return ensureInt(valOperand, operandLoc, boundCheck);
         case "-":
-            return ensureInt(-ensureInt(valOperand, operandLoc), source);
+            return ensureInt(-ensureInt(valOperand, operandLoc, boundCheck), source, boundCheck);
         case "~":
-            return ~ensureInt(valOperand, operandLoc);
+            return ~ensureInt(valOperand, operandLoc, boundCheck);
         case "!":
             return !ensureBoolean(valOperand, operandLoc);
         case "!!":
@@ -214,6 +223,7 @@ export function evalBinaryOp(
     op: AstBinaryOperation,
     valLeft: Value,
     valRight: Value,
+    boundCheck: boolean,
     locLeft: SrcInfo = dummySrcInfo,
     locRight: SrcInfo = dummySrcInfo,
     source: SrcInfo = dummySrcInfo,
@@ -221,52 +231,52 @@ export function evalBinaryOp(
     switch (op) {
         case "+":
             return ensureInt(
-                ensureInt(valLeft, locLeft) + ensureInt(valRight, locRight),
-                source,
+                ensureInt(valLeft, locLeft, boundCheck) + ensureInt(valRight, locRight, boundCheck),
+                source, boundCheck
             );
         case "-":
             return ensureInt(
-                ensureInt(valLeft, locLeft) - ensureInt(valRight, locRight),
-                source,
+                ensureInt(valLeft, locLeft, boundCheck) - ensureInt(valRight, locRight, boundCheck),
+                source, boundCheck
             );
         case "*":
             return ensureInt(
-                ensureInt(valLeft, locLeft) * ensureInt(valRight, locRight),
-                source,
+                ensureInt(valLeft, locLeft, boundCheck) * ensureInt(valRight, locRight, boundCheck),
+                source, boundCheck
             );
         case "/": {
             // The semantics of integer division for TVM (and by extension in Tact)
             // is a non-conventional one: by default it rounds towards negative infinity,
             // meaning, for instance, -1 / 5 = -1 and not zero, as in many mainstream languages.
             // Still, the following holds: a / b * b + a % b == a, for all b != 0.
-            const r = ensureInt(valRight, locRight);
+            const r = ensureInt(valRight, locRight, boundCheck);
             if (r === 0n)
                 throwErrorConstEval(
                     "divisor expression must be non-zero",
                     locRight,
                 );
-            return ensureInt(divFloor(ensureInt(valLeft, locLeft), r), source);
+            return ensureInt(divFloor(ensureInt(valLeft, locLeft, boundCheck), r), source, boundCheck);
         }
         case "%": {
             // Same as for division, see the comment above
             // Example: -1 % 5 = 4
-            const r = ensureInt(valRight, locRight);
+            const r = ensureInt(valRight, locRight, boundCheck);
             if (r === 0n)
                 throwErrorConstEval(
                     "divisor expression must be non-zero",
                     locRight,
                 );
-            return ensureInt(modFloor(ensureInt(valLeft, locLeft), r), source);
+            return ensureInt(modFloor(ensureInt(valLeft, locLeft, boundCheck), r), source, boundCheck);
         }
         case "&":
-            return ensureInt(valLeft, locLeft) & ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) & ensureInt(valRight, locRight, boundCheck);
         case "|":
-            return ensureInt(valLeft, locLeft) | ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) | ensureInt(valRight, locRight, boundCheck);
         case "^":
-            return ensureInt(valLeft, locLeft) ^ ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) ^ ensureInt(valRight, locRight, boundCheck);
         case "<<": {
-            const valNum = ensureInt(valLeft, locLeft);
-            const valBits = ensureInt(valRight, locRight);
+            const valNum = ensureInt(valLeft, locLeft, boundCheck);
+            const valBits = ensureInt(valRight, locRight, boundCheck);
             if (0n > valBits || valBits > 256n) {
                 throwErrorConstEval(
                     `the number of bits shifted ('${valBits}') must be within [0..256] range`,
@@ -274,7 +284,7 @@ export function evalBinaryOp(
                 );
             }
             try {
-                return ensureInt(valNum << valBits, source);
+                return ensureInt(valNum << valBits, source, boundCheck);
             } catch (e) {
                 if (e instanceof RangeError)
                     // this actually should not happen
@@ -286,8 +296,8 @@ export function evalBinaryOp(
             }
         }
         case ">>": {
-            const valNum = ensureInt(valLeft, locLeft);
-            const valBits = ensureInt(valRight, locRight);
+            const valNum = ensureInt(valLeft, locLeft, boundCheck);
+            const valBits = ensureInt(valRight, locRight, boundCheck);
             if (0n > valBits || valBits > 256n) {
                 throwErrorConstEval(
                     `the number of bits shifted ('${valBits}') must be within [0..256] range`,
@@ -295,7 +305,7 @@ export function evalBinaryOp(
                 );
             }
             try {
-                return ensureInt(valNum >> valBits, source);
+                return ensureInt(valNum >> valBits, source, boundCheck);
             } catch (e) {
                 if (e instanceof RangeError)
                     // this is actually should not happen
@@ -307,13 +317,13 @@ export function evalBinaryOp(
             }
         }
         case ">":
-            return ensureInt(valLeft, locLeft) > ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) > ensureInt(valRight, locRight, boundCheck);
         case "<":
-            return ensureInt(valLeft, locLeft) < ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) < ensureInt(valRight, locRight, boundCheck);
         case ">=":
-            return ensureInt(valLeft, locLeft) >= ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) >= ensureInt(valRight, locRight, boundCheck);
         case "<=":
-            return ensureInt(valLeft, locLeft) <= ensureInt(valRight, locRight);
+            return ensureInt(valLeft, locLeft, boundCheck) <= ensureInt(valRight, locRight, boundCheck);
         case "==":
             // the null comparisons account for optional types, e.g.
             // a const x: Int? = 42 can be compared to null
@@ -411,12 +421,29 @@ class ReturnSignal extends Error {
     }
 }
 
-type InterpreterConfig = {
+export type InterpreterConfig = {
     // Options that tune the interpreter's behavior.
 
     // Maximum number of iterations inside a loop before a time out is issued.
     // This option only applies to: do...until and while loops
     maxLoopIterations: bigint;
+
+    /* If true, during evaluation of expressions, it will check that: 
+       - Integers are within TVM bounds in intermediate computations.
+       - Argument to repeat statements (during interpretation of a function call) is within the required bounds.
+       
+       If false, it will deactivate those checks.
+     */
+    checkValueBoundsInExpressions: boolean;
+};
+
+export const defaultInterpreterConfig: InterpreterConfig = {
+    // We set the default max number of loop iterations
+    // to the maximum number allowed for repeat loops
+    maxLoopIterations: maxRepeatStatement,
+
+    // By default, check all bounds
+    checkValueBoundsInExpressions: true,
 };
 
 const WILDCARD_NAME: string = "_";
@@ -586,12 +613,6 @@ export function parseAndEvalExpression(sourceCode: string): EvalResult {
     }
 }
 
-const defaultInterpreterConfig: InterpreterConfig = {
-    // We set the default max number of loop iterations
-    // to the maximum number allowed for repeat loops
-    maxLoopIterations: maxRepeatStatement,
-};
-
 /*
 Interprets Tact AST trees. 
 The constructor receives an optional CompilerContext which includes 
@@ -633,7 +654,7 @@ that binds a variable name to its corresponding value.
 export class Interpreter {
     private envStack: EnvironmentStack;
     private context: CompilerContext;
-    private config: InterpreterConfig;
+    public config: InterpreterConfig;
 
     constructor(
         context: CompilerContext = new CompilerContext(),
@@ -819,7 +840,7 @@ export class Interpreter {
     }
 
     public interpretNumber(ast: AstNumber): bigint {
-        return ensureInt(ast.value, ast.loc);
+        return ensureInt(ast.value, ast.loc, this.config.checkValueBoundsInExpressions);
     }
 
     public interpretString(ast: AstString): string {
@@ -836,12 +857,12 @@ export class Interpreter {
 
         if (ast.operand.kind === "number" && ast.op === "-") {
             // emulating negative integer literals
-            return ensureInt(-ast.operand.value, ast.loc);
+            return ensureInt(-ast.operand.value, ast.loc, this.config.checkValueBoundsInExpressions);
         }
 
         const valOperand = this.interpretExpression(ast.operand);
 
-        return evalUnaryOp(ast.op, valOperand, ast.operand.loc, ast.loc);
+        return evalUnaryOp(ast.op, valOperand, this.config.checkValueBoundsInExpressions, ast.operand.loc, ast.loc);
     }
 
     public interpretBinaryOp(ast: AstOpBinary): Value {
@@ -852,6 +873,7 @@ export class Interpreter {
             ast.op,
             valLeft,
             valRight,
+            this.config.checkValueBoundsInExpressions,
             ast.left.loc,
             ast.right.loc,
             ast.loc,
@@ -971,6 +993,7 @@ export class Interpreter {
                     return ensureInt(
                         BigInt(toNano(tons).toString(10)),
                         ast.loc,
+                        this.config.checkValueBoundsInExpressions
                     );
                 } catch (e) {
                     if (e instanceof Error && e.message === "Invalid number") {
@@ -987,10 +1010,12 @@ export class Interpreter {
                 const valBase = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
+                    this.config.checkValueBoundsInExpressions
                 );
                 const valExp = ensureInt(
                     this.interpretExpression(ast.args[1]!),
                     ast.args[1]!.loc,
+                    this.config.checkValueBoundsInExpressions
                 );
                 if (valExp < 0n) {
                     throwErrorConstEval(
@@ -999,7 +1024,7 @@ export class Interpreter {
                     );
                 }
                 try {
-                    return ensureInt(valBase ** valExp, ast.loc);
+                    return ensureInt(valBase ** valExp, ast.loc, this.config.checkValueBoundsInExpressions);
                 } catch (e) {
                     if (e instanceof RangeError) {
                         // even TS bigint type cannot hold it
@@ -1016,6 +1041,7 @@ export class Interpreter {
                 const valExponent = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
+                    this.config.checkValueBoundsInExpressions
                 );
                 if (valExponent < 0n) {
                     throwErrorConstEval(
@@ -1024,7 +1050,7 @@ export class Interpreter {
                     );
                 }
                 try {
-                    return ensureInt(2n ** valExponent, ast.loc);
+                    return ensureInt(2n ** valExponent, ast.loc, this.config.checkValueBoundsInExpressions);
                 } catch (e) {
                     if (e instanceof RangeError) {
                         // even TS bigint type cannot hold it
@@ -1218,11 +1244,13 @@ export class Interpreter {
                 const wc = ensureInt(
                     this.interpretExpression(ast.args[0]!),
                     ast.args[0]!.loc,
+                    this.config.checkValueBoundsInExpressions
                 );
                 const addr = Buffer.from(
                     ensureInt(
                         this.interpretExpression(ast.args[1]!),
                         ast.args[1]!.loc,
+                        this.config.checkValueBoundsInExpressions
                     )
                         .toString(16)
                         .padStart(64, "0"),
@@ -1435,6 +1463,7 @@ export class Interpreter {
                 ast.op,
                 currentPathValue,
                 updateVal,
+                this.config.checkValueBoundsInExpressions,
                 ast.path.loc,
                 ast.expression.loc,
                 ast.loc,
@@ -1476,6 +1505,7 @@ export class Interpreter {
         const iterations = ensureRepeatInt(
             this.interpretExpression(ast.iterations),
             ast.iterations.loc,
+            this.config.checkValueBoundsInExpressions
         );
         if (iterations > 0) {
             // We can create a single environment for all the iterations in the loop

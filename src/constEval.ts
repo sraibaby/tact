@@ -19,6 +19,7 @@ import { ExpressionTransformer } from "./optimizer/types";
 import { StandardOptimizer } from "./optimizer/standardOptimizer";
 import {
     Interpreter,
+    defaultInterpreterConfig,
     ensureInt,
     evalBinaryOp,
     evalUnaryOp,
@@ -34,17 +35,18 @@ function partiallyEvalUnaryOp(
     operand: AstExpression,
     source: SrcInfo,
     ctx: CompilerContext,
+    interpreter: Interpreter,
 ): AstExpression {
     if (operand.kind === "number" && op === "-") {
         // emulating negative integer literals
-        return makeValueExpression(ensureInt(-operand.value, source));
+        return makeValueExpression(ensureInt(-operand.value, source, interpreter.config.checkValueBoundsInExpressions));
     }
 
-    const simplOperand = partiallyEvalExpression(operand, ctx);
+    const simplOperand = partiallyEvalExpression_(operand, ctx, interpreter);
 
     if (isValue(simplOperand)) {
         const valueOperand = extractValue(simplOperand as AstValue);
-        const result = evalUnaryOp(op, valueOperand, simplOperand.loc, source);
+        const result = evalUnaryOp(op, valueOperand, interpreter.config.checkValueBoundsInExpressions, simplOperand.loc, source);
         // Wrap the value into a Tree to continue simplifications
         return makeValueExpression(result);
     } else {
@@ -59,9 +61,10 @@ function partiallyEvalBinaryOp(
     right: AstExpression,
     source: SrcInfo,
     ctx: CompilerContext,
+    interpreter: Interpreter,
 ): AstExpression {
-    const leftOperand = partiallyEvalExpression(left, ctx);
-    const rightOperand = partiallyEvalExpression(right, ctx);
+    const leftOperand = partiallyEvalExpression_(left, ctx, interpreter);
+    const rightOperand = partiallyEvalExpression_(right, ctx, interpreter);
 
     if (isValue(leftOperand) && isValue(rightOperand)) {
         const valueLeftOperand = extractValue(leftOperand as AstValue);
@@ -70,6 +73,7 @@ function partiallyEvalBinaryOp(
             op,
             valueLeftOperand,
             valueRightOperand,
+            interpreter.config.checkValueBoundsInExpressions,
             leftOperand.loc,
             rightOperand.loc,
             source,
@@ -82,20 +86,73 @@ function partiallyEvalBinaryOp(
     }
 }
 
+function ensureValueBounds(val: Value, source: SrcInfo, boundCheck: boolean): Value {
+    if (typeof val === "bigint") {
+        return ensureInt(val, source, boundCheck);
+    } else if (val !== null && typeof val === "object" && "$tactStruct" in val) {
+        Object.entries(val).forEach(([_, v]) => {
+            ensureValueBounds(v, source, boundCheck);
+        });
+        return val;
+    } else {
+        return val;
+    }
+}
+
 export function evalConstantExpression(
     ast: AstExpression,
     ctx: CompilerContext,
 ): Value {
-    const interpreter = new Interpreter(ctx);
+    // Explicitly deactivate the option to check value bounds in expressions 
+    const interpreter = new Interpreter(ctx, {...defaultInterpreterConfig, checkValueBoundsInExpressions: false});
     const result = interpreter.interpretExpression(ast);
-    return result;
+    
+    // But we need to check the bounds in the final value.
+    return ensureValueBounds(result, ast.loc, interpreter.config.checkValueBoundsInExpressions);
 }
 
 export function partiallyEvalExpression(
     ast: AstExpression,
     ctx: CompilerContext,
 ): AstExpression {
-    const interpreter = new Interpreter(ctx);
+    // For the partial evaluator, bounding checking is trickier. 
+    
+    // If evaluation actually results in a single value, then we just need to check the bounds at the end.
+    // But if evaluation fails to return a single value, we must carry out partial evaluation with 
+    // bound checking activated, because the partial expression will be part of the final program!
+
+    // Hence, we need to make two evaluation passes to the expression. 
+    
+    // First pass: attempt to fully evaluate with bound checking deactivated.
+
+    try {
+        const interpreter = new Interpreter(ctx, {...defaultInterpreterConfig, checkValueBoundsInExpressions: false});
+        const result = interpreter.interpretExpression(ast);
+
+        // Then, check the bounds in the end
+        return makeValueExpression(ensureValueBounds(result, ast.loc, interpreter.config.checkValueBoundsInExpressions));
+    } catch (e) {
+        if (e instanceof TactConstEvalError) {
+            if (!e.fatal) {
+                // If a non-fatal error occurs, the second pass should be attempted
+                // (this time carrying out partial evaluation), but with bound checking activated.
+                const interpreter = new Interpreter(ctx); // By default, new interpreters activate bound checking
+                
+                // NOTE: The fact that we need to pass around the interpreter object to the partial
+                // evaluator functions, signals that the partial evaluator is an instance of an abstract
+                // interpreter: this should be refactored once the abstract interpreter is merged into main.
+                return partiallyEvalExpression_(ast, ctx, interpreter);
+            }
+        }
+        throw e;
+    }
+}
+
+function partiallyEvalExpression_(
+    ast: AstExpression,
+    ctx: CompilerContext,
+    interpreter: Interpreter,
+): AstExpression {
     switch (ast.kind) {
         case "id":
             try {
@@ -127,7 +184,7 @@ export function partiallyEvalExpression(
         case "string":
             return makeValueExpression(interpreter.interpretString(ast));
         case "op_unary":
-            return partiallyEvalUnaryOp(ast.op, ast.operand, ast.loc, ctx);
+            return partiallyEvalUnaryOp(ast.op, ast.operand, ast.loc, ctx, interpreter);
         case "op_binary":
             return partiallyEvalBinaryOp(
                 ast.op,
@@ -135,6 +192,7 @@ export function partiallyEvalExpression(
                 ast.right,
                 ast.loc,
                 ctx,
+                interpreter
             );
         case "conditional":
             // Does not partially evaluate at the moment. Will attempt to fully evaluate
