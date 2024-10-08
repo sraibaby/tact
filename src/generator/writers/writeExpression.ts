@@ -43,7 +43,6 @@ import { ops } from "./ops";
 import { writeCastedExpression } from "./writeFunction";
 import { evalConstantExpression } from "../../constEval";
 import { isLvalue } from "../../types/resolveStatements";
-import { defaultInterpreterConfig } from "../../interpreter";
 
 function isNull(wCtx: WriterContext, expr: AstExpression): boolean {
     return getExpType(wCtx.ctx, expr).kind === "null";
@@ -171,14 +170,9 @@ export function writePathExpression(path: AstId[]): string {
 export function writeExpression(f: AstExpression, wCtx: WriterContext): string {
     // literals and constant expressions are covered here
     try {
-        // Let us put a limit of 2 ^ 12 = 4096 iterations on loops to increase compiler responsiveness.
-        // If a loop takes more than such number of iterations, the interpreter will fail evaluation.
-        // I think maxLoopIterations should be a command line option in case a user wants to wait more
-        // during evaluation.
-        const value = evalConstantExpression(f, wCtx.ctx, {
-            ...defaultInterpreterConfig,
-            maxLoopIterations: 2n ** 12n,
-        });
+        // evalConstantExpression sets the integer bound check inside expressions to false automatically.
+        // Use the default configuration for the rest of options
+        const value = evalConstantExpression(f, wCtx.ctx);
         return writeValue(value, wCtx);
     } catch (error) {
         if (!(error instanceof TactConstEvalError) || error.fatal) throw error;

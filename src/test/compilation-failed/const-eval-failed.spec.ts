@@ -131,7 +131,7 @@ describe("fail-const-eval", () => {
     itShouldNotCompile({
         testName: "const-eval-int-overflow-mul1-in-fun",
         errorMessage:
-            "Cannot evaluate expression to a constant: integer '231584178474632390847141970017375815706539969331281128078915168015826259279870' does not fit into TVM Int type",
+            "Cannot evaluate expression to a constant: integer '3705346855594118253554271520278013051304639509300498049262642688253220148477920' does not fit into TVM Int type",
     });
     itShouldNotCompile({
         testName: "const-eval-int-overflow-mul2-in-fun",

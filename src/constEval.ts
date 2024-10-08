@@ -87,7 +87,7 @@ function partiallyEvalBinaryOp(
     ctx: CompilerContext,
     interpreter: Interpreter,
 ): AstExpression {
-    const leftOperand = partiallyEvalExpression(left, ctx);
+    const leftOperand = partiallyEvalExpression_(left, ctx, interpreter);
 
     if (isValue(leftOperand)) {
         // Because of short-circuiting, we must delay evaluation of the right operand
@@ -99,7 +99,11 @@ function partiallyEvalBinaryOp(
                 valueLeftOperand,
                 // We delay the evaluation of the right operand inside a continuation
                 () => {
-                    const rightOperand = partiallyEvalExpression(right, ctx);
+                    const rightOperand = partiallyEvalExpression_(
+                        right,
+                        ctx,
+                        interpreter,
+                    );
                     if (isValue(rightOperand)) {
                         // If the right operand reduces to a value, then we can let the function
                         // evalBinaryOp finish its normal execution by returning the value
@@ -135,7 +139,7 @@ function partiallyEvalBinaryOp(
         // Since the left operand does not reduce to a value, no immediate short-circuiting will occur.
         // Hence, we can partially evaluate the right operand and let the rules
         // simplify the tree.
-        const rightOperand = partiallyEvalExpression(right, ctx);
+        const rightOperand = partiallyEvalExpression_(right, ctx, interpreter);
         const newAst = makeBinaryExpression(op, leftOperand, rightOperand);
         return optimizer.applyRules(newAst);
     }
@@ -179,11 +183,7 @@ export function evalConstantExpression(
     const result = interpreter.interpretExpression(ast);
 
     // But we need to check the bounds in the final value.
-    return ensureValueBounds(
-        result,
-        ast.loc,
-        interpreter.config.checkValueBoundsInExpressions,
-    );
+    return ensureValueBounds(result, ast.loc, true);
 }
 
 export function partiallyEvalExpression(
@@ -191,7 +191,7 @@ export function partiallyEvalExpression(
     ctx: CompilerContext,
     interpreterConfig?: InterpreterConfig,
 ): AstExpression {
-    // For the partial evaluator, bounding checking is trickier.
+    // For the partial evaluator, bound checking is trickier.
 
     // If evaluation actually results in a single value, then we just need to check the bounds at the end.
     // But if evaluation fails to return a single value, we must carry out partial evaluation with
@@ -215,13 +215,7 @@ export function partiallyEvalExpression(
         const result = interpreter.interpretExpression(ast);
 
         // Then, check the bounds in the end
-        return makeValueExpression(
-            ensureValueBounds(
-                result,
-                ast.loc,
-                interpreter.config.checkValueBoundsInExpressions,
-            ),
-        );
+        return makeValueExpression(ensureValueBounds(result, ast.loc, true));
     } catch (e) {
         if (e instanceof TactConstEvalError) {
             if (!e.fatal) {

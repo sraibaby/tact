@@ -480,11 +480,10 @@ class ReturnSignal extends Error {
     }
 }
 
+// Options that tune the interpreter's behavior.
 export type InterpreterConfig = {
-    // Options that tune the interpreter's behavior.
-
     // Maximum number of iterations inside a loop before a time out is issued.
-    // This option only applies to: do...until and while loops
+    // This option applies to: do...until, while and repeat loops
     maxLoopIterations: bigint;
 
     /* If true, during evaluation of expressions, it will check that: 
@@ -497,9 +496,11 @@ export type InterpreterConfig = {
 };
 
 export const defaultInterpreterConfig: InterpreterConfig = {
-    // We set the default max number of loop iterations
-    // to the maximum number allowed for repeat loops
-    maxLoopIterations: maxRepeatStatement,
+    // We set the default max number of loop iterations to 2 ^ 12 = 4096
+    // to increase compiler responsiveness.
+    // I think maxLoopIterations should be a command line option in case a user wants to wait more
+    // during evaluation.
+    maxLoopIterations: 2n ** 12n,
 
     // By default, check all bounds
     checkValueBoundsInExpressions: true,
@@ -1598,6 +1599,14 @@ export class Interpreter {
             this.envStack.executeInNewEnvironment(() => {
                 for (let i = 1; i <= iterations; i++) {
                     ast.statements.forEach(this.interpretStatement, this);
+
+                    // Give up if the number of iterations reaches the max loop iterations
+                    if (i >= this.config.maxLoopIterations) {
+                        throwNonFatalErrorConstEval(
+                            "loop timeout reached",
+                            ast.loc,
+                        );
+                    }
                 }
             });
         }
