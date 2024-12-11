@@ -1,7 +1,7 @@
-import { SrcInfo } from "./ast";
 import { throwCompilationError } from "../errors";
+import { AbstractSrcInfo } from "./src-info";
 
-export function checkVariableName(name: string, loc: SrcInfo) {
+export function checkVariableName(name: string, loc: AbstractSrcInfo) {
     if (name.startsWith("__gen")) {
         throwCompilationError(`Variable name cannot start with "__gen"`, loc);
     }

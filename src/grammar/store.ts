@@ -8,7 +8,8 @@ import {
 } from "./ast";
 import { throwInternalCompilerError } from "../errors";
 import { CompilerContext, createContextStore } from "../context";
-import { ItemOrigin, parse } from "./grammar";
+import { parse } from "./grammar";
+import { ItemOrigin } from "./src-info";
 
 /**
  * @public

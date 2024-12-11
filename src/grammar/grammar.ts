@@ -1,13 +1,13 @@
 import {
-    Interval as RawInterval,
     Node,
     IterationNode,
     NonterminalNode,
     grammar,
     Grammar,
+    MatchResult,
 } from "ohm-js";
 import tactGrammar from "./grammar.ohm-bundle";
-import { throwInternalCompilerError } from "../errors";
+import { locationStr, TactParseError, throwInternalCompilerError } from "../errors";
 import {
     AstAugmentedAssignOperation,
     AstConstantAttribute,
@@ -24,54 +24,17 @@ import {
     AstConstantDef,
     AstNumberBase,
 } from "./ast";
-import { throwParseError, throwSyntaxError } from "../errors";
+import { throwSyntaxError } from "../errors";
 import { checkVariableName } from "./checkVariableName";
 import { checkFunctionAttributes } from "./checkFunctionAttributes";
 import { checkConstAttributes } from "./checkConstAttributes";
-
-export type ItemOrigin = "stdlib" | "user";
+import { ItemOrigin, AbstractSrcInfo, SrcInfo } from "./src-info";
 
 let ctx: { origin: ItemOrigin } | null;
 
-/**
- * Information about source code location (file and interval within it)
- * and the source code contents.
- */
-export class SrcInfo {
-    readonly #interval: RawInterval;
-    readonly #file: string | null;
-    readonly #origin: ItemOrigin;
-
-    constructor(
-        interval: RawInterval,
-        file: string | null,
-        origin: ItemOrigin,
-    ) {
-        this.#interval = interval;
-        this.#file = file;
-        this.#origin = origin;
-    }
-
-    get file() {
-        return this.#file;
-    }
-
-    get contents() {
-        return this.#interval.contents;
-    }
-
-    get interval() {
-        return this.#interval;
-    }
-
-    get origin() {
-        return this.#origin;
-    }
-}
-
 const DummyGrammar: Grammar = grammar("Dummy { DummyRule = any }");
 const DUMMY_INTERVAL = DummyGrammar.match("").getInterval();
-export const dummySrcInfo: SrcInfo = new SrcInfo(DUMMY_INTERVAL, null, "user");
+export const dummySrcInfo: AbstractSrcInfo = new SrcInfo(DUMMY_INTERVAL, null, "user");
 
 let currentFile: string | null = null;
 
@@ -82,7 +45,7 @@ function inFile<T>(path: string, callback: () => T) {
     return r;
 }
 
-function createRef(s: Node): SrcInfo {
+function createRef(s: Node): AbstractSrcInfo {
     return new SrcInfo(s.source, currentFile, ctx!.origin);
 }
 
@@ -1301,6 +1264,21 @@ semantics.addOperation<AstNode>("astOfExpression", {
         });
     },
 });
+
+export function throwParseError(
+    matchResult: MatchResult,
+    path: string,
+    origin: ItemOrigin,
+): never {
+    const interval = matchResult.getInterval();
+    const source = new SrcInfo(interval, path, origin);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const message = `Parse error: expected ${(matchResult as any).getExpectedText()}\n`;
+    throw new TactParseError(
+        `${locationStr(source)}${message}\n${interval.getLineAndColumnMessage()}`,
+        source,
+    );
+}
 
 export function parse(
     src: string,

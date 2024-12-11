@@ -1,10 +1,11 @@
-import { AstConstantAttribute, SrcInfo } from "./ast";
+import { AstConstantAttribute } from "./ast";
 import { throwSyntaxError } from "../errors";
+import { AbstractSrcInfo } from "./src-info";
 
 export function checkConstAttributes(
     isAbstract: boolean,
     attributes: AstConstantAttribute[],
-    loc: SrcInfo,
+    loc: AbstractSrcInfo,
 ) {
     const k: Set<string> = new Set();
     for (const a of attributes) {

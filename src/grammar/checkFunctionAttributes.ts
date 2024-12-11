@@ -1,10 +1,11 @@
-import { AstFunctionAttribute, SrcInfo } from "./ast";
+import { AstFunctionAttribute } from "./ast";
 import { throwCompilationError } from "../errors";
+import { AbstractSrcInfo } from "./src-info";
 
 export function checkFunctionAttributes(
     isAbstract: boolean,
     attrs: AstFunctionAttribute[],
-    loc: SrcInfo,
+    loc: AbstractSrcInfo,
 ) {
     const k: Set<string> = new Set();
     for (const a of attrs) {

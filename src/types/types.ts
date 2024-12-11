@@ -6,7 +6,6 @@ import {
     AstContractInit,
     AstNativeFunctionDecl,
     AstReceiver,
-    SrcInfo,
     AstTypeDecl,
     AstId,
     AstFunctionDecl,
@@ -15,7 +14,8 @@ import {
     AstAsmFunctionDef,
     AstNumber,
 } from "../grammar/ast";
-import { dummySrcInfo, ItemOrigin } from "../grammar/grammar";
+import { dummySrcInfo } from "../grammar/grammar";
+import { ItemOrigin, AbstractSrcInfo as SrcInfo } from "../grammar/src-info";
 
 export type TypeDescription = {
     kind: "struct" | "primitive_type_decl" | "contract" | "trait";

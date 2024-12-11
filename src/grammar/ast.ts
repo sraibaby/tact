@@ -1,4 +1,5 @@
-import { dummySrcInfo, SrcInfo } from "./grammar";
+import { dummySrcInfo } from "./grammar";
+import { AbstractSrcInfo as SrcInfo } from "./src-info";
 
 export type AstModule = {
     kind: "module";
@@ -872,5 +873,3 @@ export function isValue(ast: AstExpression): boolean {
             return false;
     }
 }
-
-export { SrcInfo };

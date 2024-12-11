@@ -1,7 +1,8 @@
-import { ItemOrigin, parseImports } from "../grammar/grammar";
+import { parseImports } from "../grammar/grammar";
 import { VirtualFileSystem } from "../vfs/VirtualFileSystem";
 import { throwCompilationError } from "../errors";
 import { resolveLibrary } from "./resolveLibrary";
+import { ItemOrigin } from "../grammar/src-info";
 
 export function resolveImports(args: {
     entrypoint: string;

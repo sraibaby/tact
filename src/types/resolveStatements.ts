@@ -1,7 +1,6 @@
 import { CompilerContext } from "../context";
 import {
     AstCondition,
-    SrcInfo,
     AstStatement,
     tryExtractPath,
     AstId,
@@ -27,6 +26,7 @@ import {
 } from "./resolveDescriptors";
 import { getExpType, resolveExpression } from "./resolveExpression";
 import { printTypeRef, TypeRef } from "./types";
+import { AbstractSrcInfo as SrcInfo } from "../grammar/src-info";
 
 export type StatementContext = {
     root: SrcInfo;

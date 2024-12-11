@@ -2,7 +2,6 @@ import { CompilerContext } from "./context";
 import {
     AstBinaryOperation,
     AstExpression,
-    SrcInfo,
     AstUnaryOperation,
     AstValue,
     isValue,
@@ -24,6 +23,7 @@ import {
     evalUnaryOp,
     throwNonFatalErrorConstEval,
 } from "./interpreter";
+import { AbstractSrcInfo as SrcInfo } from "./grammar/src-info";
 
 // The optimizer that applies the rewriting rules during partial evaluation.
 // For the moment we use an optimizer that respects overflows.
