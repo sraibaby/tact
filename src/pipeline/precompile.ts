@@ -14,15 +14,17 @@ export function precompile(
     stdlib: VirtualFileSystem,
     entrypoint: string,
 ) {
+    // TODO: getAst()
+
     // Load all sources
     const imported = resolveImports({ entrypoint, project, stdlib });
 
     // Add information about all the source code entries to the context
-    ctx = openContext(ctx, imported.tact, imported.func);
+    ctx = openContext(ctx, imported.tact, imported.func); // here
 
     // First load type descriptors and check that
     //       they all have valid signatures
-    ctx = resolveDescriptors(ctx);
+    ctx = resolveDescriptors(ctx); // here
 
     // This creates TLB-style type definitions
     ctx = resolveSignatures(ctx);

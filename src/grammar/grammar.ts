@@ -2,8 +2,6 @@ import {
     Node,
     IterationNode,
     NonterminalNode,
-    grammar,
-    Grammar,
     MatchResult,
 } from "ohm-js";
 import tactGrammar from "./grammar.ohm-bundle";
@@ -28,13 +26,46 @@ import { throwSyntaxError } from "../errors";
 import { checkVariableName } from "./checkVariableName";
 import { checkFunctionAttributes } from "./checkFunctionAttributes";
 import { checkConstAttributes } from "./checkConstAttributes";
-import { ItemOrigin, AbstractSrcInfo, SrcInfo } from "./src-info";
+import { ItemOrigin, AbstractSrcInfo } from "./src-info";
+import { Interval as RawInterval } from "ohm-js";
+
+/**
+ * Information about source code location (file and interval within it)
+ * and the source code contents.
+ */
+class SrcInfo implements AbstractSrcInfo {
+    readonly #interval: RawInterval;
+    readonly #file: string | null;
+    readonly #origin: ItemOrigin;
+
+    constructor(
+        interval: RawInterval,
+        file: string | null,
+        origin: ItemOrigin,
+    ) {
+        this.#interval = interval;
+        this.#file = file;
+        this.#origin = origin;
+    }
+
+    get file() {
+        return this.#file;
+    }
+
+    get contents() {
+        return this.#interval.contents;
+    }
+
+    get interval() {
+        return this.#interval;
+    }
+
+    get origin() {
+        return this.#origin;
+    }
+}
 
 let ctx: { origin: ItemOrigin } | null;
-
-const DummyGrammar: Grammar = grammar("Dummy { DummyRule = any }");
-const DUMMY_INTERVAL = DummyGrammar.match("").getInterval();
-export const dummySrcInfo: AbstractSrcInfo = new SrcInfo(DUMMY_INTERVAL, null, "user");
 
 let currentFile: string | null = null;
 
@@ -1265,7 +1296,7 @@ semantics.addOperation<AstNode>("astOfExpression", {
     },
 });
 
-export function throwParseError(
+function throwParseError(
     matchResult: MatchResult,
     path: string,
     origin: ItemOrigin,

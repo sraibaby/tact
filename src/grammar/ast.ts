@@ -1,5 +1,4 @@
-import { dummySrcInfo } from "./grammar";
-import { AbstractSrcInfo as SrcInfo } from "./src-info";
+import { dummySrcInfo, AbstractSrcInfo as SrcInfo } from "./src-info";
 
 export type AstModule = {
     kind: "module";
@@ -58,7 +57,7 @@ export type AstAsmFunctionDef = {
     name: AstId;
     return: AstType | null;
     params: AstTypedParameter[];
-    instructions: AstAsmInstruction[];
+    instructions: readonly AstAsmInstruction[];
     id: number;
     loc: SrcInfo;
 };
@@ -618,10 +617,15 @@ export type AstNull = {
 
 export type AstValue = AstNumber | AstBoolean | AstNull | AstString;
 
-export type AstConstantAttribute =
-    | { type: "virtual"; loc: SrcInfo }
-    | { type: "override"; loc: SrcInfo }
-    | { type: "abstract"; loc: SrcInfo };
+export type AstConstantAttributeName = 
+    | "virtual"
+    | "override"
+    | "abstract"
+
+export type AstConstantAttribute = {
+    type: AstConstantAttributeName;
+    loc: SrcInfo
+};
 
 export type AstContractAttribute = {
     type: "interface";
@@ -629,14 +633,19 @@ export type AstContractAttribute = {
     loc: SrcInfo;
 };
 
-export type AstFunctionAttribute =
-    | { type: "get"; loc: SrcInfo }
-    | { type: "mutates"; loc: SrcInfo }
-    | { type: "extends"; loc: SrcInfo }
-    | { type: "virtual"; loc: SrcInfo }
-    | { type: "abstract"; loc: SrcInfo }
-    | { type: "override"; loc: SrcInfo }
-    | { type: "inline"; loc: SrcInfo };
+export type AstFunctionAttributeName =
+    | "get"
+    | "mutates"
+    | "extends"
+    | "virtual"
+    | "abstract"
+    | "override"
+    | "inline"
+
+export type AstFunctionAttribute = {
+    type: AstFunctionAttributeName;
+    loc: SrcInfo;
+}
 
 export type AstTypedParameter = {
     kind: "typed_parameter";
@@ -648,31 +657,31 @@ export type AstTypedParameter = {
 
 export type AstReceiverKind =
     | {
-          kind: "internal-simple";
-          param: AstTypedParameter;
-      }
+        kind: "internal-simple";
+        param: AstTypedParameter;
+    }
     | {
-          kind: "internal-fallback";
-      }
+        kind: "internal-fallback";
+    }
     | {
-          kind: "internal-comment";
-          comment: AstString;
-      }
+        kind: "internal-comment";
+        comment: AstString;
+    }
     | {
-          kind: "bounce";
-          param: AstTypedParameter;
-      }
+        kind: "bounce";
+        param: AstTypedParameter;
+    }
     | {
-          kind: "external-simple";
-          param: AstTypedParameter;
-      }
+        kind: "external-simple";
+        param: AstTypedParameter;
+    }
     | {
-          kind: "external-fallback";
-      }
+        kind: "external-fallback";
+    }
     | {
-          kind: "external-comment";
-          comment: AstString;
-      };
+        kind: "external-comment";
+        comment: AstString;
+    };
 
 export type AstNode =
     | AstFuncId

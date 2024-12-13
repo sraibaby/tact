@@ -6,9 +6,9 @@ import {
     AstValue,
     isValue,
 } from "../grammar/ast";
-import { dummySrcInfo } from "../grammar/grammar";
 import { throwInternalCompilerError } from "../errors";
 import { Value } from "../types/types";
+import { dummySrcInfo } from "../grammar/src-info";
 
 export function extractValue(ast: AstValue): Value {
     switch (

@@ -13,7 +13,7 @@ import { throwCompilationError } from "../errors";
 import { AstNumber, AstReceiver } from "../grammar/ast";
 import { commentPseudoOpcode } from "../generator/writers/writeRouter";
 import { sha256_sync } from "@ton/crypto";
-import { dummySrcInfo } from "../grammar/grammar";
+import { dummySrcInfo } from "../grammar/src-info";
 
 export function resolveSignatures(ctx: CompilerContext) {
     const signatures: Map<
