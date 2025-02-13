@@ -99,3 +99,46 @@ extends fun fromBase64(self: Slice): Slice {
 
 @name(__tact_address_to_user_friendly)
 extends native toString(self: Address): String;
+
+fun toString2(self: Address): String {
+    let parsed = parseStdAddress(self.asSlice());
+
+    let user_friendly_address = beginCell()
+        .storeSlice("11".asSlice())
+        .storeUint((parsed.workchain + 0x100) % 0x100, 8)
+        .storeUint(parsed.address, 256)
+        .asSlice()
+
+    let checksum = crc16(user_friendly_address);
+    let user_friendly_address_with_checksum = beginCell()
+        .storeSlice(user_friendly_address)
+        .storeSlice(checksum)
+        .asSlice()
+
+    return user_friendly_address_with_checksum.toBase64()
+}
+
+/*
+ctx.write(`
+(int wc, int hash) = address.parse_std_addr();
+
+slice user_friendly_address = begin_cell()
+    .store_slice("11"s)
+    .store_uint((wc + 0x100) % 0x100, 8)
+    .store_uint(hash, 256)
+.end_cell().begin_parse();
+
+slice checksum = ${ctx.used(
+    "__tact_crc16",
+)}(user_friendly_address);
+slice user_friendly_address_with_checksum = begin_cell()
+    .store_slice(user_friendly_address)
+    .store_slice(checksum)
+.end_cell().begin_parse();
+
+return ${ctx.used(
+    "__tact_base64_encode",
+)}(user_friendly_address_with_checksum);
+`);
+*/
+
