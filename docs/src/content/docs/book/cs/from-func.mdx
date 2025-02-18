@@ -5,8 +5,10 @@ sidebar:
   order: 1
 ---
 
-:::danger[Not implemented]
+Type system
 
-  This page awaits implementation in [#54](https://github.com/tact-lang/tact-docs/issues/54)
+Primitive types start with a capital letter — `Int{:tact}`, `Cell{:tact}`, `Builder{:tact}`, Slice{:tact}`. In TACT we meet `Bool{:tact}` (classical boolean with true and false values), `Address{:tact}` (standard smart contract address in TON Blockchain), `String{:tact}` (immutable text strings) & `StringBuilder{:tact}` (helper type that allows you to concatenate strings in a gas-efficient way). You can specify the size or persistent state variables with `as{:tact}` keyword:
 
-:::
+```tact
+oneByte: Int as int8 = 0;
+```
